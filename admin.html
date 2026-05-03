@@ -1,0 +1,33 @@
+<!DOCTYPE html><html lang="pt-br"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Painel Lezandras</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<style>body{margin:0;background:#f4f1ea;font-family:Arial,sans-serif;color:#6f5118;padding:18px}.box{max-width:900px;margin:0 auto;background:white;border-radius:18px;padding:18px;box-shadow:0 18px 45px rgba(90,60,20,.12)}h1{color:#9f761d}input,button{padding:12px;border-radius:999px;border:1px solid #d8c699;margin:6px 0}button{background:#9f761d;color:white;cursor:pointer}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:16px 0}.stat{border:1px solid #eadfc9;border-radius:14px;padding:14px;background:#fffdf8}.stat strong{display:block;font-size:24px;color:#9f761d}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:9px 6px;border-bottom:1px solid #eadfc9;text-align:left}@media(max-width:620px){.grid{grid-template-columns:1fr}}</style></head><body><div class="box"><h1>Painel de Controle</h1><div id="login"><p>Entre com seu e-mail e senha.</p><input id="email" type="email" placeholder="E-mail"><input id="senha" type="password" placeholder="Senha"><button onclick="login()">Entrar</button><p id="loginErro"></p></div><div id="painel" style="display:none"><button onclick="logout()">Sair</button><div class="grid" id="stats"></div><h3>Clientes que resgataram</h3><button onclick="exportCSV()">Exportar CSV</button><table><thead><tr><th>CPF</th><th>Prêmio</th><th>Data</th></tr></thead><tbody id="leads"></tbody></table></div></div>
+<script>
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyAIvLTxPxOjNa_K5yD6uwe3Ue5x0WV8Dxg",
+  authDomain: "lezandras-voucher.firebaseapp.com",
+  projectId: "lezandras-voucher",
+  storageBucket: "lezandras-voucher.firebasestorage.app",
+  messagingSenderId: "203310522719",
+  appId: "1:203310522719:web:21f124905e79ea2a1696ea",
+  measurementId: "G-Z8Q4R52TWJ"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+firebase.initializeApp(firebaseConfig);const auth=firebase.auth(),db=firebase.firestore();
+const premiosConfig=[{key:"micro",texto:"10% OFF NANOPIGMENTAÇÃO OU MICROPIGMENTAÇÃO LABIAL",limite:30},{key:"cilios",texto:"15% OFF QUALQUER APLICAÇÃO DE EXTENSÃO DE CÍLIOS",limite:10},{key:"combo",texto:"20% OFF CÍLIOS + PÉ E MÃO SIMPLES + DESIGN COM HENNA",limite:6},{key:"unhas",texto:"15% OFF QUALQUER ALONGAMENTO DE UNHAS",limite:8},{key:"henna",texto:"DESIGN COM HENNA GRÁTIS",limite:5}];let leadsCache=[];
+async function login(){try{await auth.signInWithEmailAndPassword(document.getElementById("email").value,document.getElementById("senha").value)}catch(e){document.getElementById("loginErro").textContent="Login inválido."}}
+function logout(){auth.signOut()}
+auth.onAuthStateChanged(u=>{document.getElementById("login").style.display=u?"none":"block";document.getElementById("painel").style.display=u?"block":"none";if(u)carregarPainel()});
+async function carregarPainel(){const controleDoc=await db.collection("controle").doc("premios").get(),usados=controleDoc.exists?controleDoc.data():{};document.getElementById("stats").innerHTML=premiosConfig.map(p=>{const usado=usados[p.key]||0;return `<div class="stat"><strong>${usado}/${p.limite}</strong><span>${p.texto}</span><br><small>Restam: ${Math.max(0,p.limite-usado)}</small></div>`}).join("");const snap=await db.collection("cpfs").orderBy("createdAt","desc").get();leadsCache=snap.docs.map(d=>d.data());document.getElementById("leads").innerHTML=leadsCache.map(l=>`<tr><td>${l.cpf||""}</td><td>${l.premio||""}</td><td>${l.createdAt?.toDate?l.createdAt.toDate().toLocaleString("pt-BR"):""}</td></tr>`).join("")}
+function exportCSV(){const rows=[["CPF","Premio","Data"],...leadsCache.map(l=>[l.cpf||"",l.premio||"",l.createdAt?.toDate?l.createdAt.toDate().toLocaleString("pt-BR"):""])],csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n"),blob=new Blob([csv],{type:"text/csv;charset=utf-8;"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="vouchers-lezandras.csv";a.click();URL.revokeObjectURL(url)}
+</script></body></html>
