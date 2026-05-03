@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vale Presente Lezandras</title>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f4f1ea;display:flex;justify-content:center;font-family:Arial,sans-serif}
+.app{position:relative;width:min(100vw,430px);aspect-ratio:1152/2048;overflow:hidden;background:#f4f1ea}
+.screen{position:absolute;inset:0;transition:.9s}
+.bg,.bow{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.bow{top:5.5%;pointer-events:none;animation:respirar 3s ease-in-out infinite}
+@keyframes respirar{0%,100%{transform:scale(1)}50%{transform:scale(1.01)}}
+.hidden{opacity:0;pointer-events:none;transform:scale(1.02)}
+.click-layer{position:absolute;left:50%;top:56%;transform:translate(-50%,-50%);width:92%;height:48%;z-index:12;border:0;background:transparent;cursor:pointer}
+.cpf-card{position:absolute;left:50%;top:36.2%;transform:translateX(-50%);width:82%;z-index:50;background:rgba(255,252,244,.98);border:1px solid rgba(184,143,55,.45);box-shadow:0 18px 45px rgba(90,60,20,.16);border-radius:18px;padding:18px;text-align:center;color:#ad8428;display:none}
+.cpf-card.show{display:block}
+input{width:100%;border:1px solid rgba(184,143,55,.55);border-radius:999px;padding:13px 15px;background:#fffdf8;color:#8b6a1f;text-align:center;font-size:16px;outline:none}
+button{width:100%;margin-top:12px;border:none;border-radius:999px;padding:13px 14px;background:linear-gradient(135deg,#caa14a,#9f761d);color:#fffaf0;font-size:13px;letter-spacing:1px;text-transform:uppercase;cursor:pointer}
+.error{min-height:16px;margin-top:9px;color:#9d4b36;font-size:12px}
+.voucher-screen{opacity:0;pointer-events:none;transform:translateY(18px);z-index:30}
+.voucher-screen.show{opacity:1;pointer-events:auto;transform:translateY(0)}
+.cover-prize{position:absolute;left:20.2%;top:47.45%;width:59.6%;height:9%;background:rgba(250,248,242,.96);z-index:31}
+.cover-date{position:absolute;left:30.7%;top:69.75%;width:38.6%;height:5.5%;background:rgba(250,248,242,.96);z-index:31}
+.voucher-dynamic{position:absolute;left:50%;top:51.05%;transform:translate(-50%,-50%);width:69%;min-height:88px;z-index:32;display:flex;align-items:center;justify-content:center;text-align:center;color:#8d6828;font-size:13.6px;line-height:1.32;letter-spacing:.55px;text-transform:uppercase;padding:10px 8px}
+.date-dynamic{position:absolute;left:50%;top:72.35%;transform:translate(-50%,-50%);z-index:32;color:#8d6828;font-size:24px}
+.whatsapp-link{position:absolute;left:50%;top:90.55%;transform:translateX(-50%);width:48%;height:3.35%;z-index:40;border-radius:999px}
+</style>
+</head>
+
+<body>
+
+<main class="app" id="app">
+
+<section class="screen" id="introScreen">
+  <img class="bg" src="assets/inicio.png">
+  <img class="bow" src="assets/laco.png">
+
+  <div class="cpf-card" id="cpfCard">
+    <h2>Digite seu CPF</h2>
+    <input id="cpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00">
+    <button id="liberarBtn" type="button">Liberar presente</button>
+    <div class="error" id="error"></div>
+  </div>
+
+  <button class="click-layer" id="abrirBtn" type="button"></button>
+</section>
+
+<section class="screen voucher-screen" id="voucherScreen">
+  <img class="bg" src="assets/voucher.png">
+  <div class="cover-prize"></div>
+  <div class="cover-date"></div>
+  <div class="voucher-dynamic" id="voucherText"></div>
+  <div class="date-dynamic">30/05/2026</div>
+  <a class="whatsapp-link" id="whatsappBtn" target="_blank"></a>
+</section>
+
+</main>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAIvLTxPxOjNa_K5yD6uwe3Ue5x0WV8Dxg",
+  authDomain: "lezandras-voucher.firebaseapp.com",
+  projectId: "lezandras-voucher",
+  storageBucket: "lezandras-voucher.firebasestorage.app",
+  messagingSenderId: "203310522719",
+  appId: "1:203310522719:web:21f124905e79ea2a1696ea",
+  measurementId: "G-Z8Q4R52TWJ"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const premiosConfig = [
+  { key: "micro", texto: "10% OFF NANOPIGMENTAÇÃO OU MICROPIGMENTAÇÃO LABIAL", limite: 30, peso: 65 },
+  { key: "cilios", texto: "15% OFF QUALQUER APLICAÇÃO DE EXTENSÃO DE CÍLIOS", limite: 10, peso: 12 },
+  { key: "combo", texto: "20% OFF CÍLIOS + PÉ E MÃO SIMPLES + DESIGN COM HENNA", limite: 6, peso: 10 },
+  { key: "unhas", texto: "15% OFF QUALQUER ALONGAMENTO DE UNHAS", limite: 8, peso: 8 },
+  { key: "henna", texto: "DESIGN COM HENNA GRÁTIS", limite: 5, peso: 5 }
+];
+
+const numeroWhatsApp = "5521992582169";
+const cpfInput = document.getElementById("cpf");
+const error = document.getElementById("error");
+
+document.getElementById("abrirBtn").onclick = () => {
+  document.getElementById("abrirBtn").style.display = "none";
+  document.getElementById("cpfCard").classList.add("show");
+  cpfInput.focus();
+};
+
+cpfInput.oninput = () => {
+  let v = cpfInput.value.replace(/\D/g, "").slice(0, 11);
+  v = v.replace(/(\d{3})(\d)/, "$1.$2");
+  v = v.replace(/(\d{3})(\d)/, "$1.$2");
+  v = v.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  cpfInput.value = v;
+};
+
+document.getElementById("liberarBtn").onclick = liberarPresente;
+
+cpfInput.onkeydown = (e) => {
+  if (e.key === "Enter") {
+    liberarPresente();
+  }
+};
+
+async function liberarPresente() {
+  error.textContent = "";
+
+  const cpf = cpfInput.value.replace(/\D/g, "");
+
+  if (cpf.length !== 11) {
+    error.textContent = "Digite um CPF com 11 números.";
+    return;
+  }
+
+  const btn = document.getElementById("liberarBtn");
+  btn.disabled = true;
+  btn.textContent = "Liberando...";
+
+  try {
+    const premioTexto = await db.runTransaction(async (tx) => {
+      const cpfRef = db.collection("cpfs").doc(cpf);
+      const cpfDoc = await tx.get(cpfRef);
+
+      if (cpfDoc.exists) {
+        throw new Error("Esse CPF já resgatou um presente.");
+      }
+
+      const controleRef = db.collection("controle").doc("premios");
+      const controleDoc = await tx.get(controleRef);
+      const usados = controleDoc.exists ? controleDoc.data() : {};
+
+      const disponiveis = premiosConfig.filter(p => (usados[p.key] || 0) < p.limite);
+
+      if (!disponiveis.length) {
+        throw new Error("Todos os vouchers foram resgatados.");
+      }
+
+      let total = disponiveis.reduce((s, p) => s + p.peso, 0);
+      let r = Math.random() * total;
+      let premio = disponiveis[0];
+
+      for (const p of disponiveis) {
+        r -= p.peso;
+        if (r <= 0) {
+          premio = p;
+          break;
+        }
+      }
+
+      tx.set(controleRef, {
+        [premio.key]: firebase.firestore.FieldValue.increment(1)
+      }, { merge: true });
+
+      tx.set(cpfRef, {
+        cpf: cpf,
+        premio: premio.texto,
+        key: premio.key,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      return premio.texto;
+    });
+
+    mostrarVoucher(premioTexto);
+
+  } catch (e) {
+    error.textContent = e.message || "Erro ao liberar presente.";
+    btn.disabled = false;
+    btn.textContent = "Liberar presente";
+  }
+}
+
+function mostrarVoucher(premio) {
+  document.getElementById("voucherText").textContent = premio;
+
+  const msg = `Olá! Acabei de abrir meu presente 🎁 e ganhei: ${premio} ✨
+
+Quero garantir meu horário 💖`;
+
+  document.getElementById("whatsappBtn").href =
+    `https://wa.me/${numeroWhatsApp}?text=${encodeURIComponent(msg)}`;
+
+  document.getElementById("cpfCard").classList.remove("show");
+
+  setTimeout(() => {
+    document.getElementById("introScreen").classList.add("hidden");
+    document.getElementById("voucherScreen").classList.add("show");
+  }, 500);
+}
+</script>
+
+</body>
+</html>
